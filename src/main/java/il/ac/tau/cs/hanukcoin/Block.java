@@ -1,20 +1,21 @@
 package il.ac.tau.cs.hanukcoin;
 
-    /*
-     * Block is 36 byte/288bit long.
-     * record/block format:
-     * 32 bit serial number
-     * 32 bit wallet number
-     * 64 bit prev_sig[:8]highest bits  (first half ) of previous block's signature (including all the block)
-     * 64 bit puzzle answer
-     * 96 bit sig[:12] - md5 - the first 12 bytes of md5 of above fields. need to make last N bits zero
-     */
+/*
+ * Block is 36 byte/288bit long.
+ * record/block format:
+ * 32 bit serial number
+ * 32 bit wallet number
+ * 64 bit prev_sig[:8]highest bits  (first half ) of previous block's signature (including all the block)
+ * 64 bit puzzle answer
+ * 96 bit sig[:12] - md5 - the first 12 bytes of md5 of above fields. need to make last N bits zero
+ */
 
 
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 
 /**
  * Class that represnts one block in the block chane.
@@ -153,6 +154,16 @@ public class Block {
             dump += String.format("%02X ", data[i]);
         }
         return dump;
+    }
+    public static boolean two_blocks_equal(Block block, Block block2) {
+        ArrayList<Object> coolblock = HanukCoinUtils.MakeBlockReadableToHumanCreatures(block2);
+        ArrayList<Object> otherblock = HanukCoinUtils.MakeBlockReadableToHumanCreatures(block);
+        for (int i = 0; i < 5; i++) {
+            if (!coolblock.get(i).equals(otherblock.get(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
 

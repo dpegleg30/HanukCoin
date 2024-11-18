@@ -2,6 +2,7 @@ package il.ac.tau.cs.hanukcoin;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Random;
 
 public class HanukCoinUtils {
@@ -141,10 +142,10 @@ public class HanukCoinUtils {
     }
 
     /**
-     * Do several attempts at zolving the puzzle
+     * Do several attempts at solving the puzzle
      * @param myWalletNum - wallet number to mine for
-     * @param prevBlock - the previos block in the chain
-     * @param attemptsCount - number of attemts
+     * @param prevBlock - the previous block in the chain
+     * @param attemptsCount - number of attempts
      * @return a new block OR null if failed
      */
     public static Block mineCoinAtteempt(int myWalletNum, Block prevBlock, int attemptsCount) {
@@ -173,6 +174,7 @@ public class HanukCoinUtils {
     }
 
     public static void main(String[] args) {
+        long start1 = System.nanoTime();
         int numCoins = Integer.parseInt(args[0]);
         System.out.println(String.format("Mining %d coins...", numCoins));
         ArrayList<Block> chain = new ArrayList<>();
@@ -180,7 +182,7 @@ public class HanukCoinUtils {
         chain.add(genesis);
         int wallet1 = HanukCoinUtils.walletCode("TEST1");
         int wallet2 = HanukCoinUtils.walletCode("TEST2");
-
+        System.out.println(genesis.binDump());
         for(int i = 0; i < numCoins; i++) {
             long t1 = System.nanoTime();
             Block newBlock = null;
@@ -196,11 +198,52 @@ public class HanukCoinUtils {
             }
             chain.add(newBlock);
             long t2 = System.nanoTime();
-            System.out.println(String.format("mining took =%d milli", (int)((t2 - t1)/10000000)));
+            System.out.println(String.format("mining took =%d milli", (int) ((t2 - t1) / 10000000)));
             System.out.println(newBlock.binDump());
 
         }
+        long end1 = System.nanoTime();
+        System.out.println(String.format("\nThe whole mining session took =%d milli\n", (int) ((end1 - start1) / 10000000)));
+//        return chain;
+    }
 
+    public static ArrayList<Block> ProvChain(String[] args) {
+        long start1 = System.nanoTime();
+        int numCoins = Integer.parseInt(args[0]);
+        ArrayList<Block> chain = new ArrayList<>();
+        Block genesis = HanukCoinUtils.createBlock0forTestStage();
+        chain.add(genesis);
+        int wallet1 = HanukCoinUtils.walletCode("TEST1");
+        int wallet2 = HanukCoinUtils.walletCode("TEST2");for(int i = 0; i < numCoins; i++) {
+            long t1 = System.nanoTime();
+            Block newBlock = null;
+            Block prevBlock = chain.get(i);
+            while (newBlock == null) {
+                newBlock = mineCoinAtteempt(wallet1, prevBlock, 10000000);
+            }
+            int tmp = wallet1;
+            wallet1 = wallet2;
+            wallet2 = tmp;
+            if (newBlock.checkValidNext(prevBlock) != Block.BlockError.OK) {
+                throw new RuntimeException("BAD BLOCK");
+            }
+            chain.add(newBlock);
+            long t2 = System.nanoTime();
+        }
+        long end1 = System.nanoTime();
+        return chain;
+    }
 
+    public static ArrayList<Object> MakeBlockReadableToHumanCreatures(Block block) {
+        ArrayList<Object> blockdata = new ArrayList<>();
+        blockdata.add(block.getSerialNumber());
+        blockdata.add(block.getWalletNumber());
+        String blocksig = block.binDump();
+        blocksig = blocksig.replace(" ", "");
+        blocksig = blocksig.replace("\n", "");
+        blockdata.add(blocksig.substring(16, 32));
+        blockdata.add(blocksig.substring(32, 48));
+        blockdata.add(blocksig.substring(48, 72));
+        return blockdata;
     }
 }
