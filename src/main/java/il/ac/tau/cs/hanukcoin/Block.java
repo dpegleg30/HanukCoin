@@ -3,7 +3,7 @@ package il.ac.tau.cs.hanukcoin;
 /*
  * Block is 36 byte/288bit long.
  * record/block format:
- * 32 bit serial number
+ * 32-bit serial number
  * 32 bit wallet number
  * 64 bit prev_sig[:8]highest bits  (first half ) of previous block's signature (including all the block)
  * 64 bit puzzle answer
@@ -12,28 +12,23 @@ package il.ac.tau.cs.hanukcoin;
 
 
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
- * Class that represnts one block in the block chane.
- * The clok hods a 36-bytes array and all operations are peformed directly on this array.
+ * Class that represents one block in the block chane.
+ * The clock hods a 36-bytes array and all operations are performed directly on this array.
  */
 public class Block {
     public static final int BLOCK_SZ = 36;
-    public enum BlockError {OK, BAD_SERIAL_NO, SAME_WALLET_PREV, NO_PREV_SIG, SIG_NO_ZEROS, SIG_BAD}
     protected byte[] data;
-    public int getSerialNumber() {
-        return HanukCoinUtils.intFromBytes(data, 0);
-    }
-    public int getWalletNumber() {
-        return HanukCoinUtils.intFromBytes(data, 4);
-    }
 
     /**
-     * Creste a block without a signature or puzzle fields.
+     * Creates a block without a signature or puzzle fields.
      * @param serialNumber
      * @param walletNumber
      * @param prevSig8
@@ -47,6 +42,7 @@ public class Block {
         System.arraycopy(prevSig8, 0, b.data, 8, 8);
         return b;
     }
+
     public static Block create(int serialNumber, int walletNumber, byte[] prevSig8, byte[] puzzle8, byte[] sig12) {
         Block b = createNoSig(serialNumber, walletNumber, prevSig8);
         System.arraycopy(sig12, 0, b.data, 24, 12);
@@ -61,6 +57,38 @@ public class Block {
         return b;
     }
 
+    public int getSerialNumber() {
+        return HanukCoinUtils.intFromBytes(data, 0);
+    }
+
+    public int getWalletNumber() {
+        return HanukCoinUtils.intFromBytes(data, 4);
+    }
+
+    public long getPrevSig() {
+        return HanukCoinUtils.longFromBytes(data, 8);
+    }
+
+    public long getPuzzle() {
+        return HanukCoinUtils.longFromBytes(data, 16);
+    }
+
+    public long getStartSig() {
+        return HanukCoinUtils.longFromBytes(data, 24);
+    }
+
+    public int getFinishSig() {
+        return HanukCoinUtils.intFromBytes(data, 32);
+    }
+
+
+    public void writeTo(DataOutputStream dos) throws IOException {
+        dos.write(getBytes(), 0, BLOCK_SZ);
+    }
+
+    public boolean equals(Block other) {
+        return Arrays.equals(other.getBytes(), this.getBytes());
+    }
 
     /**
      * put 8 bytes dat into puzzle field
@@ -68,8 +96,17 @@ public class Block {
      */
     public void setLongPuzzle(long longPuzzle) {
         // Treat it as 2 32bit integers
-        HanukCoinUtils.intIntoBytes(data, 16, (int)(longPuzzle >> 32));
-        HanukCoinUtils.intIntoBytes(data, 20, (int)(longPuzzle & 0xFFFFFFFF));
+        HanukCoinUtils.intIntoBytes(data, 16, (int) (longPuzzle >> 32));
+        HanukCoinUtils.intIntoBytes(data, 20, (int) (longPuzzle));
+    }
+
+    /**
+     * compare this.puzzle - other.puzzle
+     * @param other
+     * @return 1 if this puzzle bigger, 0 if equal, -1 if this smaller
+     */
+    public int comparePuzzle(Block other) {
+        return HanukCoinUtils.ArraysPartCompare(8, this.getBytes(), 16, other.getBytes(), 16);
     }
 
     /**
@@ -80,10 +117,9 @@ public class Block {
         System.arraycopy(sig, 0, data, 24, 12);
     }
 
-
     /**
      * calc block signature based on all fields besides signature itself.
-     * @return  16 byte MD5 signature
+     * @return 16 byte MD5 signature
      */
     public byte[] calcSignature() {
         try {
@@ -97,14 +133,13 @@ public class Block {
 
     /**
      * getter for internal bytes of block
-     * @return
      */
     public byte[] getBytes() {
         return data;
     }
 
     /**
-     * calc signature for the bloxk and see if in has the required number of zeros and matches signature written to the block
+     * calc signature for the block and see if in has the required number of zeros and matches signature written to the block
      * @return BlockError: SIG_NO_ZEROS or SIG_BAD or OK
      */
     public BlockError checkSignature() {
@@ -121,12 +156,12 @@ public class Block {
     }
 
     /**
-     * given a block oprevios to this one - check if this one is valid.
+     * given a block previous to this one - check if this one is valid.
      * @param prevBlock
      * @return BlockError
      */
     public BlockError checkValidNext(Block prevBlock) {
-        if (getSerialNumber() !=  prevBlock.getSerialNumber() + 1) {
+        if (getSerialNumber() != prevBlock.getSerialNumber() + 1) {
             return BlockError.BAD_SERIAL_NO;  // bad serial number - should be prev + 1
         }
         if (getWalletNumber() == prevBlock.getWalletNumber()) {
@@ -139,22 +174,29 @@ public class Block {
     }
 
     /**
-     * String with HEX dunp of block for debugging.
+     * String with HEX dump of block for debugging.
      * @return string - hex dump
      */
     public String binDump() {
-        String dump = "";
+        StringBuilder dump = new StringBuilder();
         for (int i = 0; i < BLOCK_SZ; i++) {
             if ((i % 4) == 0) {
-                dump += " ";
+                dump.append(" ");
             }
             if ((i % 8) == 0) {
-                dump += "\n";
+                dump.append("\n");
             }
-            dump += String.format("%02X ", data[i]);
+            dump.append(String.format("%02X ", data[i]));
         }
-        return dump;
+        return dump.toString();
     }
+
+    public Block clone() {
+        Block b = new Block();
+        b.data = Arrays.copyOf(this.getBytes(), BLOCK_SZ);
+        return b;
+    }
+
     public static boolean two_blocks_equal(Block block, Block block2) {
         ArrayList<Object> coolblock = HanukCoinUtils.MakeBlockReadableToHumanCreatures(block2);
         ArrayList<Object> otherblock = HanukCoinUtils.MakeBlockReadableToHumanCreatures(block);
@@ -166,6 +208,5 @@ public class Block {
         return true;
     }
 
-
+    public enum BlockError {OK, BAD_SERIAL_NO, SAME_WALLET_PREV, NO_PREV_SIG, SIG_NO_ZEROS, SIG_BAD}
 }
-

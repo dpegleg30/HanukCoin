@@ -1,25 +1,34 @@
+
 package il.ac.tau.cs.hanukcoin;
+
+import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 
 public class HanukCoinUtils {
-    static private final int PUZZLE_BITS0 = 20;  // Note - we can make it lower for quick testing
+    static private final int PUZZLE_BITS0 = 20;  //Note - we can make it lower for quick testing
+    static private final int START_NODES = 0xBeefBeef;
+    static private final int START_BLOCKS = 0xDeadDead;
+
+    static private final int PROPAGATION_HOSTS = 3;
+    static private final int TIME_DEAD_NODE = 30 * 60;
+
     /**
-     * Calculate how many time n can be divided by 2 to get zero
+     * Calculate how many times n can be divided by 2 to get zero
      * @param n
      * @return base 2 log of n plus 1
      */
     public static int numBits(long n) {
-        for(int i =0 ; i < 32; i++) {
+        for (int i = 0; i < 32; i++) {
             long mask = (1L << i) - 1;
             if ((n & mask) == n) {
                 return i;
             }
         }
-        return 99; //error?
+        return 99; // error?
     }
 
     /**
@@ -46,6 +55,18 @@ public class HanukCoinUtils {
         return b1 | b2 | b3 | b4;
     }
 
+    public static long longFromBytes(byte[] data, int offset) {
+        long b1 = ((long) data[offset] & 0xFF) << 56;
+        long b2 = ((long) data[offset + 1] & 0xFF) << 48;
+        long b3 = ((long) data[offset + 2] & 0xFF) << 40;
+        long b4 = ((long) data[offset + 3] & 0xFF) << 32;
+        long b5 = ((long) data[offset + 4] & 0xFF) << 24;
+        long b6 = ((long) data[offset + 5] & 0xFF) << 16;
+        long b7 = ((long) data[offset + 6] & 0xFF) << 8;
+        long b8 = ((long) data[offset + 7] & 0xFF);
+        return b1 | b2 | b3 | b4 | b5 | b6 | b7 | b8;
+    }
+
     /**
      * put value in big-endian format into data[offser]
      * @param data - bytes array
@@ -54,10 +75,10 @@ public class HanukCoinUtils {
      */
     public static void intIntoBytes(byte[] data, int offset, int value) {
         //return data[offset] << 24 | data[offset + 1] << 16 | data[offset + 2] << 8 | data[offset + 3];
-        data[offset] = (byte)((value >> 24) & 0xFF);
-        data[offset + 1] = (byte)((value >> 16) & 0xFF);
-        data[offset + 2] = (byte)((value >> 8) & 0xFF);
-        data[offset + 3] = (byte)((value) & 0xFF);
+        data[offset] = (byte) ((value >>> 24) & 0xFF);
+        data[offset + 1] = (byte) ((value >>> 16) & 0xFF);
+        data[offset + 2] = (byte) ((value >>> 8) & 0xFF);
+        data[offset + 3] = (byte) ((value) & 0xFF);
     }
 
     /**
@@ -75,22 +96,47 @@ public class HanukCoinUtils {
     }
 
     static private byte[] parseByteStr(String s) {
-        ArrayList<Byte> a = new ArrayList<Byte>();
+        ArrayList<Byte> a = new ArrayList<>();
         for (String hex : s.split("\\s+")) {
             byte b = (byte) Integer.parseInt(hex, 16);
             a.add(b);
         }
         byte[] result = new byte[a.size()];
-        for(int i = 0; i < a.size(); i++) {
+        for (int i = 0; i < a.size(); i++) {
             result[i] = a.get(i);
         }
         return result;
     }
 
-    public static Block createBlock0forTestStage() {
-        byte[] puzzle =  parseByteStr("71 16 8F 29  D9 FE DF F9");
-        byte[] sig = parseByteStr("BF 3D AE 1F  65 B0 8F 66 AB 2D B5 1E");
+    public static Block createBlock0forTestStage_old() {
+        byte[] sig = parseByteStr("01 02 03 04  DE AD 05 06");
+        byte[] puzzle = parseByteStr("71 16 8F 29  D9 FE DF F9");
         return Block.create(0, 0, "TEST_BLK".getBytes(), puzzle, sig);
+
+    }
+
+    public static Block createBlock0forTestStage() {
+        Block g = new Block();
+        g.data = parseByteStr("""
+                00 00 00 00  00 00 00 00 \s
+                43 4F 4E 54  45 53 54 30 \s
+                6C E4 BA AA  70 1C E0 FC \s
+                4B 72 9D 93  A2 28 FB 27 \s
+                4D 11 E7 25\s""");
+        return g;
+    }
+
+    public static Block generateGenesis(String chars8) {
+        int serialNum = 0;
+        int walletNum = 0;
+        byte[] prevSig;
+        try {
+            prevSig = chars8.getBytes("utf-8");
+        } catch (UnsupportedEncodingException e) {
+            return null;
+        }
+        Block newBlock = Block.createNoSig(serialNum, walletNum, prevSig);
+        return mineCoinAttemptInternal(newBlock, 1000000);
     }
 
     /**
@@ -105,7 +151,7 @@ public class HanukCoinUtils {
         }
         int sigIndex = 15;  // start from last byte of MD5
         // First check in chunks of 8 bits - full bytes
-        while(nZeros >= 8) {
+        while (nZeros >= 8) {
             if (sig[sigIndex] != 0)
                 return false;
             sigIndex -= 1;
@@ -120,7 +166,20 @@ public class HanukCoinUtils {
     }
 
     public static int getUnixTimestamp() {
-        return (int)(System.currentTimeMillis() / 1000);
+        return (int) (System.currentTimeMillis() / 1000);
+    }
+
+    /**
+     * Are two byte array s equal
+     * @param len - number of bytes to compare
+     * @param a - first array
+     * @param a_start - start offset for a
+     * @param b - second array
+     * @param b_start - start offset for b
+     * @return true if array parts are equal
+     */
+    public static boolean ArraysPartEquals(int len, byte[] a, int a_start, byte[] b, int b_start) {
+        return 0 == ArraysPartCompare(len, a, a_start, b, b_start);
     }
 
     /**
@@ -130,31 +189,42 @@ public class HanukCoinUtils {
      * @param a_start - start offset for a
      * @param b - second array
      * @param b_start - start offset for b
-     * @return true if array parts are equal
+     * @return 1 if array a>b, 0 if a==b, -1 if a<b
      */
-    public static boolean ArraysPartEquals(int len, byte[] a, int a_start, byte[] b, int b_start) {
-        for(int i = 0; i < len; i++) {
-            if (a[a_start + i] != b[b_start + i]) {
-                return false;
+
+    public static int ArraysPartCompare(int len, byte[] a, int a_start, byte[] b, int b_start) {
+        for (int i = 0; i < len; i++) {
+            if (a[a_start + i] > b[b_start + i]) {
+                return 1;
+            } else if (a[a_start + i] < b[b_start + i]) {
+                return -1;
             }
         }
-        return true;
+        return 0;
     }
 
     /**
-     * Do several attempts at solving the puzzle
+     * Do several attempts at zolving the puzzle
      * @param myWalletNum - wallet number to mine for
-     * @param prevBlock - the previous block in the chain
-     * @param attemptsCount - number of attempts
+     * @param prevBlock - the previos block in the chain
+     * @param attemptsCount - number of attemts
      * @return a new block OR null if failed
      */
-    public static Block mineCoinAtteempt(int myWalletNum, Block prevBlock, int attemptsCount) {
+    public static Block mineCoinAttempt(int myWalletNum, Block prevBlock, int attemptsCount) {
         int newSerialNum = prevBlock.getSerialNumber() + 1;
+        System.out.println("Attempting to mine block no." + newSerialNum);
+        if (prevBlock.getWalletNumber() == myWalletNum) {
+            return null;  // no point in trying to mine
+        }
         byte[] prevSig = new byte[8];
         System.arraycopy(prevBlock.getBytes(), 24, prevSig, 0, 8);
         Block newBlock = Block.createNoSig(newSerialNum, myWalletNum, prevSig);
+        return mineCoinAttemptInternal(newBlock, attemptsCount);
+    }
+
+    public static Block mineCoinAttemptInternal(Block newBlock, int attemptsCount) {
         Random rand = new Random();
-        for (int attempt= 0; attempt < attemptsCount; attempt++) {
+        for (int attempt = 0; attempt < attemptsCount; attempt++) {
             long puzzle = rand.nextLong();
             newBlock.setLongPuzzle(puzzle);
             Block.BlockError result = newBlock.checkSignature();
@@ -167,6 +237,7 @@ public class HanukCoinUtils {
                 if (result != Block.BlockError.OK) {
                     return null; //failed
                 }
+                System.out.println("Mined successfully");
                 return newBlock;
             }
         }
@@ -174,64 +245,38 @@ public class HanukCoinUtils {
     }
 
     public static void main(String[] args) {
-        long start1 = System.nanoTime();
+        // to generate new genesis:
+        Block g1 = createBlock0forTestStage();
+        System.out.println(g1.binDump());
         int numCoins = Integer.parseInt(args[0]);
-        System.out.println(String.format("Mining %d coins...", numCoins));
+        System.out.printf("Mining %d coins...%n", numCoins);
         ArrayList<Block> chain = new ArrayList<>();
         Block genesis = HanukCoinUtils.createBlock0forTestStage();
         chain.add(genesis);
         int wallet1 = HanukCoinUtils.walletCode("TEST1");
         int wallet2 = HanukCoinUtils.walletCode("TEST2");
-        System.out.println(genesis.binDump());
-        for(int i = 0; i < numCoins; i++) {
+
+        for (int i = 0; i < numCoins; i++) {
             long t1 = System.nanoTime();
             Block newBlock = null;
             Block prevBlock = chain.get(i);
             while (newBlock == null) {
-                newBlock = mineCoinAtteempt(wallet1, prevBlock, 10000000);
+                newBlock = mineCoinAttempt(wallet1, prevBlock, 10000000);
             }
+
             int tmp = wallet1;
             wallet1 = wallet2;
             wallet2 = tmp;
             if (newBlock.checkValidNext(prevBlock) != Block.BlockError.OK) {
                 throw new RuntimeException("BAD BLOCK");
             }
+
             chain.add(newBlock);
             long t2 = System.nanoTime();
-            System.out.println(String.format("mining took =%d milli", (int) ((t2 - t1) / 10000000)));
+
+            System.out.printf("mining took =%d milli%n", (int) ((t2 - t1) / 10000000));
             System.out.println(newBlock.binDump());
-
         }
-        long end1 = System.nanoTime();
-        System.out.println(String.format("\nThe whole mining session took =%d milli\n", (int) ((end1 - start1) / 10000000)));
-//        return chain;
-    }
-
-    public static ArrayList<Block> ProvChain(String[] args) {
-        long start1 = System.nanoTime();
-        int numCoins = Integer.parseInt(args[0]);
-        ArrayList<Block> chain = new ArrayList<>();
-        Block genesis = HanukCoinUtils.createBlock0forTestStage();
-        chain.add(genesis);
-        int wallet1 = HanukCoinUtils.walletCode("TEST1");
-        int wallet2 = HanukCoinUtils.walletCode("TEST2");for(int i = 0; i < numCoins; i++) {
-            long t1 = System.nanoTime();
-            Block newBlock = null;
-            Block prevBlock = chain.get(i);
-            while (newBlock == null) {
-                newBlock = mineCoinAtteempt(wallet1, prevBlock, 10000000);
-            }
-            int tmp = wallet1;
-            wallet1 = wallet2;
-            wallet2 = tmp;
-            if (newBlock.checkValidNext(prevBlock) != Block.BlockError.OK) {
-                throw new RuntimeException("BAD BLOCK");
-            }
-            chain.add(newBlock);
-            long t2 = System.nanoTime();
-        }
-        long end1 = System.nanoTime();
-        return chain;
     }
 
     public static ArrayList<Object> MakeBlockReadableToHumanCreatures(Block block) {

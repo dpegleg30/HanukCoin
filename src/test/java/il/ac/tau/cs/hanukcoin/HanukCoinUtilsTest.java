@@ -7,7 +7,8 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 
-import static il.ac.tau.cs.hanukcoin.HanukCoinUtils.mineCoinAtteempt;
+import static il.ac.tau.cs.hanukcoin.HanukCoinUtils.mineCoinAttempt;
+import static il.ac.tau.cs.hanukcoin.HanukCoinUtils.mineCoinAttempt;
 
 
 public class HanukCoinUtilsTest extends TestCase{
@@ -63,7 +64,7 @@ public class HanukCoinUtilsTest extends TestCase{
     public void test_mine() {
         Block genesis = HanukCoinUtils.createBlock0forTestStage();
         long t1 = System.nanoTime();
-        Block newBlock = mineCoinAtteempt(HanukCoinUtils.walletCode("TEST"), genesis, 10000000);
+        Block newBlock = mineCoinAttempt(HanukCoinUtils.walletCode("TEST"), genesis, 10000000);
         long t2 = System.nanoTime();
         System.out.println(String.format("mining took =%d milli", (int)((t2 - t1)/10000000)));
 
