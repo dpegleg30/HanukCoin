@@ -12,7 +12,7 @@ public class HanukCoinUtils {
     static private final int PUZZLE_BITS0 = 20;  //Note - we can make it lower for quick testing
     static private final int START_NODES = 0xBeefBeef;
     static private final int START_BLOCKS = 0xDeadDead;
-
+    static public ArrayList<Block> ChainCurrent;
     static private final int PROPAGATION_HOSTS = 3;
     static private final int TIME_DEAD_NODE = 30 * 60;
 
@@ -212,7 +212,7 @@ public class HanukCoinUtils {
      */
     public static Block mineCoinAttempt(int myWalletNum, Block prevBlock, int attemptsCount) {
         int newSerialNum = prevBlock.getSerialNumber() + 1;
-        System.out.println("Attempting to mine block no." + newSerialNum);
+        System.out.print("⚙" + " ");
         if (prevBlock.getWalletNumber() == myWalletNum) {
             return null;  // no point in trying to mine
         }
@@ -237,7 +237,7 @@ public class HanukCoinUtils {
                 if (result != Block.BlockError.OK) {
                     return null; //failed
                 }
-                System.out.println("Mined successfully");
+                //System.out.printf("-=Mined block no.%d successfully=-%n", newBlock.getSerialNumber());
                 return newBlock;
             }
         }
@@ -276,6 +276,7 @@ public class HanukCoinUtils {
 
             System.out.printf("mining took =%d milli%n", (int) ((t2 - t1) / 10000000));
             System.out.println(newBlock.binDump());
+            ChainCurrent = chain;
         }
     }
 

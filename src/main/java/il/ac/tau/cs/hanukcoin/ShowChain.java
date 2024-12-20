@@ -13,14 +13,15 @@ import java.util.List;
 public class ShowChain {
     public static final int BEEF_BEEF = 0xbeefBeef;
     public static final int DEAD_DEAD = 0xdeadDead;
+    public static Block lastBlock = new Block();
     public static void log(String fmt, Object... args) {
-        println(fmt, args);
+        //println(fmt, args);
     }
     public static void println(String fmt, Object... args) {
         System.out.format(fmt + "\n", args);
     }
 
-    //Below is the Nodes class -> refers to computers using the network
+
     static class NodeInfo {
         // FRANJI: Discussion - public members - pro/cons. What is POJO
         public String name;
@@ -59,7 +60,7 @@ public class ShowChain {
                 dataOutput = new DataOutputStream(connectionSocket.getOutputStream());
 
             } catch (IOException e) {
-               throw new RuntimeException("FATAL = cannot create data streams", e);
+                throw new RuntimeException("FATAL = cannot create data streams", e);
             }
         }
 
@@ -68,46 +69,14 @@ public class ShowChain {
                 sendRequest(1, dataOutput);
                 parseMessage(dataInput);
 
-
             } catch (IOException e) {
                 throw new RuntimeException("send/recieve error", e);
             }
         }
 
-        public ArrayList<NodeInfo> ActiveNodesFunc(DataInputStream dos) throws IOException {
-            dataInput.readInt();
-            dataInput.readInt();
-            dataInput.readInt();
-            ArrayList<NodeInfo> receivedNodes =  new ArrayList<>();
-            for (int ni = 0; ni < 2; ni++) {
-                NodeInfo newInfo = NodeInfo.readFrom(dataInput);
-                receivedNodes.add(newInfo);
-            }
-            return receivedNodes;
-        }
-
-        private void sendRequestWithDis(int cmd, DataOutputStream dos, DataInputStream dis) throws IOException {
-            dos.writeInt(cmd);
-            dis.readInt();
-            dis.readInt();
-            dos.writeInt(BEEF_BEEF);
-            int activeNodes = dis.readInt();
-            // TODO(students): calculate number of active (not new) nodes
-            dos.writeInt(activeNodes);
-            dos.writeInt(dis.readInt());
-            // TODO(students): sendRequest data of active (not new) nodes
-            dos.writeInt(DEAD_DEAD);
-            int blockChain_size = 0;
-            dos.writeInt(blockChain_size);
-            dos.writeInt(dis.readInt());
-            // TODO(students): sendRequest data of blocks
-        }
-
-        // The method below gets a message file like, and extracts the
-        // different fields, as shown in the docs file
         public void parseMessage(DataInputStream dataInput) throws IOException  {
             int cmd = dataInput.readInt(); // skip command field
-            System.out.println(cmd);
+
             int beefBeef = dataInput.readInt();
             if (beefBeef != BEEF_BEEF) {
                 throw new IOException("Bad message no BeefBeef");
@@ -130,9 +99,11 @@ public class ShowChain {
                 Block newBlock = Block.readFrom(dataInput);
                 receivedBlocks.add(newBlock);
             }
-            printMessage(receivedNodes, receivedBlocks);
+            lastBlock = receivedBlocks.get(receivedBlocks.size()-1);
+            // Currently disabled printMessage
+            //printMessage(receivedNodes, receivedBlocks);
         }
-        //Below gets the node list and the already mined blocks, and prints them
+
         private void printMessage(List<NodeInfo> receivedNodes, List<Block> receivedBlocks) {
             println("==== Nodes ====");
             for (NodeInfo ni : receivedNodes) {

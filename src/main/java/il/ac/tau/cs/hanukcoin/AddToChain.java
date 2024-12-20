@@ -7,6 +7,11 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class AddToChain {
     public static final int BEEF_BEEF = 0xbeefBeef;
@@ -16,7 +21,7 @@ public class AddToChain {
 
 
     public static void log(String fmt, Object... args) {
-        println(fmt, args);
+        //println(fmt, args);
     }
 
     public static void println(String fmt, Object... args) {
@@ -35,7 +40,6 @@ public class AddToChain {
     }
 
     public static void main(String[] args) {
-//        System.out.println(HanukCoinUtils.intIntoBytes(HanukCoinUtils.walletCode("CaptainAmerica")););
         if (args.length != 1 || !args[0].contains(":")) {
             println("ERROR - please provide HOST:PORT");
             return;
@@ -47,28 +51,79 @@ public class AddToChain {
         // send an "empty" message in order to get the nodes and blocks in the server
         sendReceive(addr, port);
 
-        System.out.println("Last Block " + blockList.size());
-        // add another block for testing purposes
-        System.out.println("Attempting to mine");
+        if (blockList.get(blockList.size() - 1).getWalletNumber() == 0xc207e787) {
+            return;
+        }
+        // Get number of available processors
+        int numThreads = Runtime.getRuntime().availableProcessors() - 1;
+        System.out.println("Starting mining with " + numThreads + " threads. Target block:" + blockList.size());
 
-        Block block = HanukCoinUtils.mineCoinAttempt(HanukCoinUtils.walletCode("CaptainAmerica"), blockList.get(blockList.size() - 1), 100000000);
-        while (block == null) {
-            System.out.println("Attempting to mine");
-            block = HanukCoinUtils.mineCoinAttempt(HanukCoinUtils.walletCode("CaptainAmerica"), blockList.get(blockList.size() - 1), 100000000);
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        AtomicReference<Block> minedBlock = new AtomicReference<>(null);
+        CountDownLatch latch = new CountDownLatch(1);
+
+
+        for (int i = 0; i < numThreads; i++) {
+            final int threadId = i;
+            executor.submit(() -> {
+                try {
+                    int start_time = (int) (System.currentTimeMillis() / 1000);
+                    while (minedBlock.get() == null && !Thread.currentThread().isInterrupted()) {
+                        Block attempt = HanukCoinUtils.mineCoinAttempt(
+                                HanukCoinUtils.walletCode(CaptainAmeriminer.wallet),
+                                blockList.get(blockList.size() - 1),
+                                100000000
+                        );
+
+                        if (attempt != null) {
+                            int end_time = (int) (System.currentTimeMillis() / 1000);
+                            if (minedBlock.compareAndSet(null, attempt)) {
+                                System.out.println("SUCCESS! Thread " + threadId + " successfully mined block no." + minedBlock.get().getSerialNumber() + " within " + (end_time-start_time) + " seconds");
+                                latch.countDown();
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.out.println("Thread " + threadId + " encountered error: " + e.getMessage());
+                }
+            });
         }
 
-        blockList.add(block);
+        try {
+            boolean mined = latch.await(10, TimeUnit.MINUTES);
 
-        NodeInfo node = new NodeInfo();
-        node.name = "CaptainAmerica";
-        node.host = "82ca-89-139-41-77.ngrok-free.app";
-        node.port = 80;
-        node.lastSeenTS = (int)(System.currentTimeMillis() / 1000);
+            if (!mined) {
+                System.out.println("Mining timed out after 10 minutes");
+                executor.shutdownNow();
+                return;
+            }
 
-        nodeList.add(node);
+            Block block = minedBlock.get();
+            if (block != null) {
+                blockList.add(block);
 
-        // send the new node to the server
-        sendReceive(addr, port);
+//                NodeInfo node = new NodeInfo();
+//                node.name = "CaptainAmerica";
+//                node.host = "82ca-89-139-41-77.ngrok-free.app";
+//                node.port = 80;
+//                node.lastSeenTS = (int)(System.currentTimeMillis() / 1000);
+//
+//                nodeList.add(node);
+
+                // send the new node to the server
+                sendReceive(addr, port);
+            }
+
+        } catch (InterruptedException e) {
+            System.out.println("Mining was interrupted: " + e.getMessage());
+        } finally {
+            executor.shutdownNow();
+            try {
+                executor.awaitTermination(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                System.out.println("Error shutting down thread pool: " + e.getMessage());
+            }
+        }
     }
 
     static class NodeInfo {
@@ -186,12 +241,6 @@ public class AddToChain {
             // send data of blocks
             for (Block block : blockList) {
                 dos.write(block.data);
-//                dos.writeInt(block.getSerialNumber());
-//                dos.writeInt(block.getSerialNumber());
-//                dos.writeLong(block.getPrevSig());
-//                dos.writeLong(block.getPuzzle());
-//                dos.writeLong(block.getStartSig());
-//                dos.writeInt(block.getFinishSig());
             }
         }
 
