@@ -11,13 +11,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.*;
 
 public class AddToChain {
     public static final int BEEF_BEEF = 0xbeefBeef;
     public static final int DEAD_DEAD = 0xdeadDead;
     private static final List<NodeInfo> nodeList = new ArrayList<>();
-    private static final List<Block> blockList = new ArrayList<>();
+    private static List<Block> blockList = new ArrayList<>();
+    public static String[] Colors = {"\u001B[31;1m", "\u001B[32;1m", "\u001B[36;1m", "\u001B[1;3m\u001b[38;2;138;200;200m"};
+    public static String A_RESET = "\u001B[0m";
 
 
     public static void log(String fmt, Object... args) {
@@ -39,11 +41,13 @@ public class AddToChain {
         }
     }
 
-    public static void main(String[] args) {
+    public static int[] main2(String[] args) throws Exception {
         if (args.length != 1 || !args[0].contains(":")) {
             println("ERROR - please provide HOST:PORT");
-            return;
+            return new int[3];
         }
+        AtomicInteger threadId2 = new AtomicInteger();
+        AtomicLong miningTime2 = new AtomicLong();
         String[] parts = args[0].split(":");
         String addr = parts[0];
         int port = Integer.parseInt(parts[1]);
@@ -51,12 +55,16 @@ public class AddToChain {
         // send an "empty" message in order to get the nodes and blocks in the server
         sendReceive(addr, port);
 
-        if (blockList.get(blockList.size() - 1).getWalletNumber() == 0xc207e787) {
-            return;
+        //last block is ours?
+        if (CaptainAmeriminer.MainLastBlock == HanukCoinUtils.walletCode(CaptainAmeriminer.wallet)) {
+            return new int[3];
         }
         // Get number of available processors
-        int numThreads = Runtime.getRuntime().availableProcessors() - 1;
-        System.out.println("Starting mining with " + numThreads + " threads. Target block:" + blockList.size());
+        int numThreads = CaptainAmeriminer.NumOfActiveThreads;
+        if (numThreads > Runtime.getRuntime().availableProcessors()) {
+            throw new Exception("I am not happy\n why you try to use " + numThreads + " threads?!");
+        }
+        System.out.println("Starting mining with " + numThreads + " threads as " + CaptainAmeriminer.wallet + ". Target block : " + Colors[2] + (blockList.get(blockList.size() - 1).getSerialNumber()+1)  + A_RESET);
 
         ExecutorService executor = Executors.newFixedThreadPool(numThreads);
         AtomicReference<Block> minedBlock = new AtomicReference<>(null);
@@ -66,8 +74,9 @@ public class AddToChain {
         for (int i = 0; i < numThreads; i++) {
             final int threadId = i;
             executor.submit(() -> {
+                Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
                 try {
-                    int start_time = (int) (System.currentTimeMillis() / 1000);
+                    long start_time = (System.currentTimeMillis());
                     while (minedBlock.get() == null && !Thread.currentThread().isInterrupted()) {
                         Block attempt = HanukCoinUtils.mineCoinAttempt(
                                 HanukCoinUtils.walletCode(CaptainAmeriminer.wallet),
@@ -76,9 +85,11 @@ public class AddToChain {
                         );
 
                         if (attempt != null) {
-                            int end_time = (int) (System.currentTimeMillis() / 1000);
                             if (minedBlock.compareAndSet(null, attempt)) {
-                                System.out.println("SUCCESS! Thread " + threadId + " successfully mined block no." + minedBlock.get().getSerialNumber() + " within " + (end_time-start_time) + " seconds");
+                                long end_time = (System.currentTimeMillis());
+                                threadId2.set(threadId);
+                                miningTime2.set(((end_time - start_time)));
+                                System.out.println(Colors[1] + "SUCCESS! Thread " + threadId + " successfully mined block no." + minedBlock.get().getSerialNumber() + " within " + Colors[3] + (end_time-start_time) + " milliseconds" + A_RESET);
                                 latch.countDown();
                             }
                         }
@@ -95,7 +106,7 @@ public class AddToChain {
             if (!mined) {
                 System.out.println("Mining timed out after 10 minutes");
                 executor.shutdownNow();
-                return;
+                return new int[3];
             }
 
             Block block = minedBlock.get();
@@ -124,6 +135,9 @@ public class AddToChain {
                 System.out.println("Error shutting down thread pool: " + e.getMessage());
             }
         }
+
+        return new int[] {minedBlock.get().getSerialNumber(), (int) (miningTime2.get()), threadId2.get()};
+
     }
 
     static class NodeInfo {

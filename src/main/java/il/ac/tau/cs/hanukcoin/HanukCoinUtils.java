@@ -212,10 +212,10 @@ public class HanukCoinUtils {
      */
     public static Block mineCoinAttempt(int myWalletNum, Block prevBlock, int attemptsCount) {
         int newSerialNum = prevBlock.getSerialNumber() + 1;
-        System.out.print("⚙" + " ");
         if (prevBlock.getWalletNumber() == myWalletNum) {
-            return null;  // no point in trying to mine
+            return new Block();  // no point in trying to mine
         }
+        System.out.print("⚙" + " ");
         byte[] prevSig = new byte[8];
         System.arraycopy(prevBlock.getBytes(), 24, prevSig, 0, 8);
         Block newBlock = Block.createNoSig(newSerialNum, myWalletNum, prevSig);

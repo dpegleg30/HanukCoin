@@ -14,6 +14,8 @@ public class ShowChain {
     public static final int BEEF_BEEF = 0xbeefBeef;
     public static final int DEAD_DEAD = 0xdeadDead;
     public static Block lastBlock = new Block();
+    public static boolean saveBlocks = false;
+    public static List<Block> blocks;
     public static void log(String fmt, Object... args) {
         //println(fmt, args);
     }
@@ -100,8 +102,11 @@ public class ShowChain {
                 receivedBlocks.add(newBlock);
             }
             lastBlock = receivedBlocks.get(receivedBlocks.size()-1);
+            if (saveBlocks) {
+                blocks = receivedBlocks;
+            }
             // Currently disabled printMessage
-            //printMessage(receivedNodes, receivedBlocks);
+//            printMessage(receivedNodes, receivedBlocks);
         }
 
         private void printMessage(List<NodeInfo> receivedNodes, List<Block> receivedBlocks) {
@@ -142,6 +147,7 @@ public class ShowChain {
     }
 
     public static void main(String argv[]) {
+        saveBlocks = false;
         if (argv.length != 1 || !argv[0].contains(":")){
             println("ERROR - please provide HOST:PORT");
             return;
@@ -150,5 +156,18 @@ public class ShowChain {
         String addr = parts[0];
         int port = Integer.parseInt(parts[1]);
         sendReceive(addr, port);
+    }
+
+    public static List<Block> minerStats(String[] argv) {
+        saveBlocks = true;
+        if (argv.length != 1 || !argv[0].contains(":")){
+            println("ERROR - please provide HOST:PORT");
+            return null;
+        }
+        String[] parts = argv[0].split(":");
+        String addr = parts[0];
+        int port = Integer.parseInt(parts[1]);
+        sendReceive(addr, port);
+        return blocks;
     }
 }

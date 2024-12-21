@@ -5,19 +5,46 @@ import java.util.ArrayList;
 public class CaptainAmeriminer {
     public static int NumOfActiveThreads;
     public static String wallet = "CaptainAmerica";
+    public static String[] Colors = {"\u001B[31;1m", "\u001B[32m;1", "\u001B[36;1m"};
+    public static String A_RESET = "\u001B[0m";
+    public static int MainLastBlock = -1;
+    public static ArrayList<int[]> Statistics = new ArrayList<>();
+    public static int blocksThoughtToBeMined = 0;
 
-    public static void main(String[] args) throws InterruptedException {
-        NumOfActiveThreads = 7; // I chose 7, cuz I have total 8
+    public static void main(String[] args) throws Exception {
+        NumOfActiveThreads = 5; // I chose 5, cuz I have total 8
         AddToChain addToChain = new AddToChain();
         ShowChain showChain = new ShowChain();
-
+        ShowChain.main(args);
+        // Main loop
         while (true) {
-            AddToChain.main(args);
-            showChain.main(args);
-
+            MainLastBlock = ShowChain.lastBlock.getWalletNumber();
+            Statistics.add(addToChain.main2(args));
+            blocksThoughtToBeMined++;
+            ShowChain.main(args);
+            int EnterThing = 0;
+            int waitTime = (int) (500 * Math.log(ShowChain.lastBlock.getSerialNumber())/Math.log(2));
+            // Waiting until someone mines
+            if (wallet.equals("CaptainAmerica")) {
+                wallet = "captainAmerica";
+            }
+            else {
+                wallet = "CaptainAmerica";
+            }
             while (ShowChain.lastBlock.getWalletNumber() == HanukCoinUtils.walletCode(wallet)) {
-                int waitTime = (int) (500 * Math.log(showChain.lastBlock.getSerialNumber())/Math.log(2));
-                System.out.print("🔗");
+                if (wallet.equals("CaptainAmerica")) {
+                    wallet = "captainAmerica";
+                }
+                else {
+                    wallet = "CaptainAmerica";
+                }
+                //System.out.print("🔗");
+                EnterThing++;
+                if (EnterThing > 20) {
+                    EnterThing = 0;
+                    System.out.println(" : 20 attempts :" + Colors[0] + " no activity" + A_RESET);
+                    waitTime = waitTime + 300;
+                }
 
                 try {
                     Thread.sleep(waitTime);
@@ -28,8 +55,22 @@ public class CaptainAmeriminer {
                 showChain.main(args);
             }
             System.out.println(" ");
-            System.out.println("Last block is not ours anymore, starting to mine...");
+            //System.out.println("Last block is not ours anymore, starting to mine...");
+            if (blocksThoughtToBeMined % 5 == 0) {
+                MiningStats.printData(Statistics);
+            }
+
+            if (blocksThoughtToBeMined > 29) {
+                throw new Exception("Sampling is over");
+            }
         }
+    }
+    public static ArrayList<int[]> getStats() {
+        return Statistics;
+    }
+
+    public static void main2(String[] args) throws Exception {
+
     }
 
     public static boolean validate_chain(ArrayList<Block> chain) {
