@@ -61,9 +61,9 @@ public class RunningGpuMiner {
 
     public Block mineCoin(int myWalletNum, Block prevBlock, int requiredZeros) {
         int newSerialNum = prevBlock.getSerialNumber() + 1;
-        System.out.println("Attempting mine as: " + Colors[2] + CaptainAmeriminer.wallet + A_RESET);
+        //System.out.println("Attempting mine as: " + Colors[2] + CaptainAmeriminer.wallet + A_RESET);
 
-        // Don't mine if previous block was from same wallet
+        // Dont mine if we already have last block
         if (prevBlock.getWalletNumber() == myWalletNum) {
             return null;
         }
@@ -111,16 +111,14 @@ public class RunningGpuMiner {
                 clEnqueueReadBuffer(queue, hashesBuffer, CL_TRUE, 0, 16 * TOTAL_THREADS,
                         Pointer.to(hashes), 0, null, null);
 
-                // Create final block with found solution
+                // Create final block with long solution
                 Block please = Block.createNoSig(newSerialNum, myWalletNum, prevSig);
                 for (int i = 0; i < 8; i++) {
                     please.data[16 + i] = (byte)((result[0] >>> (i * 8)) & 0xFF);
                     //System.out.printf("%02x", (byte)((result[0] >>> (i * 8)) & 0xFF));
                 }
-                System.out.println();
                 please.setSignaturePart(please.calcSignature());
                 //CpuMD5.binDump2(please.data);
-                System.out.println();
                 //CpuMD5.binDump2(Block.calcSignatureStatic(please.data));
 
                 if (please.checkSignature() == Block.BlockError.OK) {
@@ -142,26 +140,5 @@ public class RunningGpuMiner {
         clReleaseKernel(kernel);
         clReleaseCommandQueue(queue);
         clReleaseContext(context);
-    }
-
-    public static void main(String[] args) throws IOException {
-        RunningGpuMiner miner = new RunningGpuMiner();
-        try {
-            // Example usage
-            Block genesis = HanukCoinUtils.createBlock0forTestStage();
-            int walletNum = HanukCoinUtils.walletCode("TEST_MINER");
-
-            Block minedBlock = miner.mineCoin(walletNum, genesis,
-                    HanukCoinUtils.numberOfZerosForPuzzle(genesis.getSerialNumber() + 1));
-
-            if (minedBlock != null) {
-                System.out.println("Successfully mined block:");
-                System.out.println(minedBlock.binDump());
-            } else {
-                System.out.println("Mining failed");
-            }
-        } finally {
-            miner.cleanup();
-        }
     }
 }

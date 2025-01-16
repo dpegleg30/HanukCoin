@@ -160,7 +160,6 @@ public class HanukCoinUtils {
         // First check in chunks of 8 bits - full bytes
         while (nZeros >= 8) {
             if (sig[sigIndex] != 0) {
-                System.out.println(sigIndex);
                 return false;
             }
             sigIndex -= 1;

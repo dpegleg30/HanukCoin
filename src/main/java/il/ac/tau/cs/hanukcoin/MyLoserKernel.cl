@@ -103,14 +103,14 @@ void md5(uint *key, uint *hash_result) {
 bool check_hash_zeros(uint *hash, int required_zeros) {
     int byte_index = 15;  // start from last byte
 
-    // Check full bytes
+    // Check all block bytes
     while (required_zeros >= 8) {
         if (GETCHAR(hash, byte_index) != 0) return false;
         byte_index--;
         required_zeros -= 8;
     }
 
-    // Check remaining bits
+    // Check remaining bits (bruh why)
     if (required_zeros == 0) return true;
 
     uint mask = (1 << required_zeros) - 1;
@@ -123,12 +123,12 @@ __kernel void mainFunc(__global const uchar *input, __global uchar *output_hashe
     uint key[16] = {0};
     uint hash_result[4];
 
-    // Copy first 16 bytes of block (unchanged part)
+    // Copy first 16 bytes of block
     for (int i = 0; i < 16; i++) {
         PUTCHAR(key, i, input[i]);
     }
 
-    int attemptCount = 10000;
+    int attemptCount = 1000;
     for (int attempt = 0; attempt < attemptCount; attempt++) {
 
         ulong puzzle_value = gid * attemptCount + attempt + startValue;
@@ -137,20 +137,20 @@ __kernel void mainFunc(__global const uchar *input, __global uchar *output_hashe
             PUTCHAR(key, 16 + i, (puzzle_value >> (i * 8)) & 0xFF);
         }
 
-        // Add padding
+        // Add stuff claude really wanted
         PUTCHAR(key, 24, 0x80);
         PUTCHAR(key, 56, 0xC0);  // Message length (192 bits = 24 bytes * 8)
 
         // Calculate MD5
         md5(key, hash_result);
-        // Check if we found a solution with required zeros
-        if (check_hash_zeros(hash_result, 31)) {
+        // Check if hash has enough zeros
+        if (check_hash_zeros(hash_result, required_zeros)) {
             // Write the successful hash
             for (int i = 0; i < 16; i++) {
                 output_hashes[gid * 16 + i] = GETCHAR(hash_result, i);
             }
 
-            // Store the successful puzzle value
+            // Save the successful puzzle long
             *result = (long)(gid * attemptCount + attempt) + startValue;
 //            printf("%d %ld\n", *result, startValue);
 //            for (int i = 0; i < 6; i++) {

@@ -27,10 +27,14 @@ public class CaptainAmeriminer {
                 wallet = "captainamerica";
             }
             Block newBlock = null;
+            double t0 = System.currentTimeMillis();
+            System.out.println(blocksThoughtToBeMined);
             while (newBlock == null) {
                 newBlock = miner.mineCoin(HanukCoinUtils.walletCode(wallet), ChainStore.getLastBlock(),HanukCoinUtils.numberOfZerosForPuzzle(ChainStore.getLastBlock().getSerialNumber()));
                 if (newBlock != null) {
                     System.out.println(newBlock.binDump());
+                    double t1 = System.currentTimeMillis();
+                    Statistics.add(new int[] {ChainStore.getLastBlock().getSerialNumber(), (int) (t1 - t0), 0});
                 }
                 RunningGpuMiner.startVal += 4294967295L;
             }
@@ -75,6 +79,8 @@ public class CaptainAmeriminer {
                 MiningStats.printData(Statistics);
             }
 
+            //disable in the Final run - limits the blocks per run to 100.
+            //Could be changed as you wish
             if (blocksThoughtToBeMined > 99) {
                 throw new Exception("Sampling is over");
             }
