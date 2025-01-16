@@ -9,7 +9,7 @@ public class MiningStats {
         System.out.println(StatistixaData.size());
         System.out.println("const sampleData = [");
         int[] currData = new int[]{1, 2, 3};
-        for (int i = Math.max(StatistixaData.size() - 30, 0); i < StatistixaData.size(); i++) {
+        for (int i = 0; i < StatistixaData.size(); i++) {
             currData = StatistixaData.get(i);
             System.out.print("\t{name: 'Block " + currData[0] + "', time: "
             + currData[1] + ", thread: " + currData[2] + "}");

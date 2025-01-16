@@ -13,13 +13,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.*;
 
+
 public class AddToChain {
     public static final int BEEF_BEEF = 0xbeefBeef;
     public static final int DEAD_DEAD = 0xdeadDead;
-    private static final List<NodeInfo> nodeList = new ArrayList<>();
-    private static List<Block> blockList = new ArrayList<>();
     public static String[] Colors = {"\u001B[31;1m", "\u001B[32;1m", "\u001B[36;1m", "\u001B[1;3m\u001b[38;2;138;200;200m"};
     public static String A_RESET = "\u001B[0m";
+    public static ArrayList<Block> blockList = ChainStore.getBlocklist();
+    public static ArrayList<ShowChain.NodeInfo> nodeList = ChainStore.getNodelist();
 
 
     public static void log(String fmt, Object... args) {
@@ -140,33 +141,18 @@ public class AddToChain {
 
     }
 
-    static class NodeInfo {
-        // FRANJI: Discussion - public members - pro/cons. What is POJO
-
-        public String name;
-        public String host;
-        public int port;
-        public int lastSeenTS;
-        // TODO(students): add more fields you may need such as number of connection attempts failed
-        //  last time connection was attempted, if this node is new ot alive etc.
-
-        public static String readLenStr(DataInputStream dis) throws IOException {
-            byte strLen = dis.readByte();
-            byte[] strBytes = new byte[strLen];
-            dis.readFully(strBytes);
-            return new String(strBytes, StandardCharsets.UTF_8);
+    public static void main(String argv[]) {
+        if (argv.length != 1 || !argv[0].contains(":")){
+            println("ERROR - please provide HOST:PORT");
+            return;
         }
-
-        public static NodeInfo readFrom(DataInputStream dis) throws IOException {
-            NodeInfo n = new NodeInfo();
-            n.name = readLenStr(dis);
-            n.host = readLenStr(dis);
-            n.port = dis.readShort();
-            n.lastSeenTS = dis.readInt();
-            // TODO(students): update extra fields
-            return n;
-        }
+        String[] parts = argv[0].split(":");
+        String addr = parts[0];
+        int port = Integer.parseInt(parts[1]);
+        sendReceive(addr, port);
     }
+
+
 
     static class ClientConnection {
         private final DataInputStream dataInput;
@@ -185,9 +171,10 @@ public class AddToChain {
         public void sendReceive() {
             try {
                 sendRequest(1, dataOutput);
-                processResponse(dataInput);
+//                processResponse(dataInput);
             } catch (IOException e) {
                 throw new RuntimeException("send/recieve error", e);
+//                log("send/recieve error");
             }
         }
 
@@ -203,7 +190,7 @@ public class AddToChain {
             // FRANJI: discussion - create a new list in memory or update global list?
             nodeList.clear();
             for (int ni = 0; ni < nodesCount; ni++) {
-                NodeInfo newInfo = NodeInfo.readFrom(dataInput);
+                ShowChain.NodeInfo newInfo = ShowChain.NodeInfo.readFrom(dataInput);
                 nodeList.add(newInfo);
             }
             int deadDead = dataInput.readInt();
@@ -212,25 +199,19 @@ public class AddToChain {
             }
             int blockCount = dataInput.readInt();
             // FRANJI: discussion - create a new list in memory or update global list?
+            ArrayList<Block> recievedBlocks = new ArrayList<>();
             blockList.clear();
             for (int bi = 0; bi < blockCount; bi++) {
                 Block newBlock = Block.readFrom(dataInput);
-                blockList.add(newBlock);
+                recievedBlocks.add(newBlock);
             }
+            blockList = recievedBlocks;
+
+            ChainStore.setBlocklist(recievedBlocks);
             log("INFO - Successfully received data");
 //            printMessage();
         }
 
-        private void printMessage(List<NodeInfo> receivedNodes, List<Block> receivedBlocks) {
-            println("==== Nodes ====");
-            for (NodeInfo ni : receivedNodes) {
-                println("%20s\t%s:%s\t%d", ni.name, ni.host, ni.port, ni.lastSeenTS);
-            }
-            println("==== Blocks ====");
-            for (Block b : receivedBlocks) {
-                println("%5d\t0x%08x\t%s", b.getSerialNumber(), b.getWalletNumber(), b.binDump().replace("\n", "  "));
-            }
-        }
 
         private void sendRequest(int cmd, DataOutputStream dos) throws IOException {
             // send cmd and BEEF_BEEF
@@ -264,7 +245,7 @@ public class AddToChain {
             dos.writeInt(activeNodesCount);
 
             // send the data of all the nodes
-            for (NodeInfo node : nodeList) {
+            for (ShowChain.NodeInfo node : nodeList) {
                 dos.writeByte(node.name.length());
                 dos.write(node.name.getBytes());
                 dos.writeByte(node.host.length());

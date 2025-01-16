@@ -81,6 +81,13 @@ public class HanukCoinUtils {
         data[offset + 3] = (byte) ((value) & 0xFF);
     }
 
+    public static void intIntoBytesGpu(byte[] data, int offset, int value) {
+        // Write in little-endian order to match GPU expectations
+        for (int i = 0; i < 4; i++) {
+            data[offset + i] = (byte)((value >> (i * 8)) & 0xFF);
+        }
+    }
+
     /**
      * Given a user/team name - return 32bit wallet code
      * @return 32bit number
@@ -152,8 +159,10 @@ public class HanukCoinUtils {
         int sigIndex = 15;  // start from last byte of MD5
         // First check in chunks of 8 bits - full bytes
         while (nZeros >= 8) {
-            if (sig[sigIndex] != 0)
+            if (sig[sigIndex] != 0) {
+                System.out.println(sigIndex);
                 return false;
+            }
             sigIndex -= 1;
             nZeros -= 8;
         }
@@ -262,6 +271,7 @@ public class HanukCoinUtils {
             Block prevBlock = chain.get(i);
             while (newBlock == null) {
                 newBlock = mineCoinAttempt(wallet1, prevBlock, 10000000);
+                System.out.println(System.nanoTime() - t1);
             }
 
             int tmp = wallet1;
@@ -291,5 +301,65 @@ public class HanukCoinUtils {
         blockdata.add(blocksig.substring(32, 48));
         blockdata.add(blocksig.substring(48, 72));
         return blockdata;
+    }
+
+    public static float[] calculateInitialHashInput(Block lastBlock, int walletCode) {
+        byte[] prevSig = lastBlock.getSignature();
+        float[] input = new float[3]; // Split 12 bytes into 3 floats
+        for(int i = 0; i < 3; i++) {
+            int value = ((prevSig[i*4] & 0xFF) << 24) |
+                    ((prevSig[i*4+1] & 0xFF) << 16) |
+                    ((prevSig[i*4+2] & 0xFF) << 8) |
+                    (prevSig[i*4+3] & 0xFF);
+            input[i] = Float.intBitsToFloat(value ^ walletCode);
+        }
+        return input;
+    }
+
+    public static Block createBlock(Block lastBlock, int nonce, String walletName) {
+        int serNum = lastBlock.getSerNum() + 1;
+        int walletNum = walletCode(walletName);
+        long prevSig = lastBlock.getPrevSig();
+        long puzzle = lastBlock.getPrevSig() ^ nonce;
+
+        byte[] signature = new byte[12];
+        // Fill signature based on your specific signature generation algorithm
+        Block block21 = new Block();
+        return block21.Block2(serNum, walletNum, prevSig, puzzle, signature);
+    }
+
+    public static Block mineCoinAttempt2(int myWalletNum, Block prevBlock, int attemptsCount, int ThreadNumber) {
+        int newSerialNum = prevBlock.getSerialNumber() + 1;
+        if (prevBlock.getWalletNumber() == myWalletNum) {
+            return new Block();  // no point in trying to mine
+        }
+        System.out.print("⚙" + " ");
+        byte[] prevSig = new byte[8];
+        System.arraycopy(prevBlock.getBytes(), 24, prevSig, 0, 8);
+        Block newBlock = Block.createNoSig(newSerialNum, myWalletNum, prevSig);
+        return mineCoinAttemptInternal2(newBlock, attemptsCount, ThreadNumber);
+    }
+
+    public static Block mineCoinAttemptInternal2(Block newBlock, int attemptsCount, int ThreadNumber) {
+        Random rand = new Random();
+        long puzzle = ThreadNumber;
+        for (int attempt = 0; attempt < attemptsCount; attempt++) {
+            puzzle += ThreadNumber;
+            newBlock.setLongPuzzle(puzzle);
+            Block.BlockError result = newBlock.checkSignature();
+            if (result != Block.BlockError.SIG_NO_ZEROS) {
+                // if enough zeros - we got error because of other reason - e.g. sig field not set yet
+                byte[] sig = newBlock.calcSignature();
+                newBlock.setSignaturePart(sig);
+                // recheck block
+                result = newBlock.checkSignature();
+                if (result != Block.BlockError.OK) {
+                    return null; //failed
+                }
+                //System.out.printf("-=Mined block no.%d successfully=-%n", newBlock.getSerialNumber());
+                //return newBlock;
+            }
+        }
+        return null;
     }
 }

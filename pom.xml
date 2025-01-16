@@ -19,6 +19,12 @@
         </dependency>
 
         <dependency>
+            <groupId>org.jocl</groupId>
+            <artifactId>jocl</artifactId>
+            <version>2.0.4</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>20.0.2</version> <!-- Use the latest stable version -->
@@ -49,6 +55,14 @@
             <version>4.12</version>
             <!--scope>test</scope -->
         </dependency>
+
+        <!-- Aparapi for GPU computations -->
+        <dependency>
+            <groupId>com.aparapi</groupId>
+            <artifactId>aparapi</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+
     </dependencies>
     <build>
         <plugins>

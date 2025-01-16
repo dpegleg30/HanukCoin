@@ -14,10 +14,16 @@ package il.ac.tau.cs.hanukcoin;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+
+import il.ac.tau.cs.hanukcoin.GpuExmerimentos.CpuMD5;
+import org.jocl.*;
 
 /**
  * Class that represents one block in the block chane.
@@ -100,6 +106,13 @@ public class Block {
         HanukCoinUtils.intIntoBytes(data, 20, (int) (longPuzzle));
     }
 
+    public void setLongPuzzleGpu(long longPuzzle) {
+        // Write 64-bit value as 8 separate bytes in little-endian order
+        for (int i = 0; i < 8; i++) {
+            data[16 + i] = (byte)((longPuzzle >> (i * 8)) & 0xFF);
+        }
+    }
+
     /**
      * compare this.puzzle - other.puzzle
      * @param other
@@ -121,10 +134,30 @@ public class Block {
      * calc block signature based on all fields besides signature itself.
      * @return 16 byte MD5 signature
      */
+//    public byte[] calcSignature() {
+//        try {
+//            MessageDigest md = MessageDigest.getInstance("MD5");  // may cause NoSuchAlgorithmException
+//            md.update(data, 0, 24);
+//            return md.digest();
+//        } catch (NoSuchAlgorithmException e) {
+//            throw new RuntimeException("Internal error - missing MD5");
+//        }
+//    }
+
     public byte[] calcSignature() {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");  // may cause NoSuchAlgorithmException
             md.update(data, 0, 24);
+            return md.digest();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Internal error - missing MD5");
+        }
+    }
+
+    public static byte[] calcSignatureStatic(byte[] puzzle) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");  // may cause NoSuchAlgorithmException
+            md.update(puzzle, 0, 24);
             return md.digest();
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Internal error - missing MD5");
@@ -208,5 +241,44 @@ public class Block {
         return true;
     }
 
+    private int serNum;      // 4 bytes
+    private int walletNum;   // 4 bytes
+    private long prevSig;    // 8 bytes
+    private long puzzle;     // 8 bytes
+    private byte[] signature; // 12 bytes
+
+    public Block Block2(int serNum, int walletNum, long prevSig, long puzzle, byte[] signature) {
+        this.serNum = serNum;
+        this.walletNum = walletNum;
+        this.prevSig = prevSig;
+        this.puzzle = puzzle;
+        this.signature = signature;
+        return this;
+    }
+
+    public byte[] getSignature() {
+        byte[] sig = new byte[12];
+        System.arraycopy(this.data, 16, sig, 0, 8);
+        return sig;
+    }
+    public int getSerNum() { return serNum; }
+    public int getWalletNum() { return walletNum; }
+
+    public byte[] getData() {
+        return data;
+    }
+
     public enum BlockError {OK, BAD_SERIAL_NO, SAME_WALLET_PREV, NO_PREV_SIG, SIG_NO_ZEROS, SIG_BAD}
+
+    public static void main(String[] args) {
+        System.out.println(HanukCoinUtils.numberOfZerosForPuzzle(1080));
+        byte[] bytes = CpuMD5.getBlock24bytes("00 00 04 44 56 75 47 4f 43 82 91 24 2e b6 6b b5 " +
+                "43 42 74 58 01 00 00 00 b9 94 37 43 5f 15 da 49 33 62 cf e9 ");
+
+        CpuMD5.binDump2(bytes);
+        System.out.println();
+        CpuMD5.binDump2(calcSignatureStatic(bytes));
+        System.out.println();
+        System.out.println(HanukCoinUtils.checkSignatureZeros(calcSignatureStatic(bytes), HanukCoinUtils.numberOfZerosForPuzzle(796)));
+    }
 }

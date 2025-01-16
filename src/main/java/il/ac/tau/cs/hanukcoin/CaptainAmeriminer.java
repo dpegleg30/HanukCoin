@@ -4,7 +4,7 @@ import java.util.ArrayList;
 
 public class CaptainAmeriminer {
     public static int NumOfActiveThreads;
-    public static String wallet = "CaptainAmerica";
+    public static String wallet = "captainamerica";
     public static String[] Colors = {"\u001B[31;1m", "\u001B[32m;1", "\u001B[36;1m"};
     public static String A_RESET = "\u001B[0m";
     public static int MainLastBlock = -1;
@@ -12,33 +12,48 @@ public class CaptainAmeriminer {
     public static int blocksThoughtToBeMined = 0;
 
     public static void main(String[] args) throws Exception {
-        NumOfActiveThreads = 5; // I chose 5, cuz I have total 8
-        AddToChain addToChain = new AddToChain();
+        NumOfActiveThreads = 6;
         ShowChain showChain = new ShowChain();
+        RunningGpuMiner miner = new RunningGpuMiner();
         ShowChain.main(args);
+        ChainStore.writeDataToFile();
         // Main loop
         while (true) {
-            MainLastBlock = ShowChain.lastBlock.getWalletNumber();
-            Statistics.add(addToChain.main2(args));
-            blocksThoughtToBeMined++;
-            ShowChain.main(args);
-            int EnterThing = 0;
-            int waitTime = (int) (500 * Math.log(ShowChain.lastBlock.getSerialNumber())/Math.log(2));
-            // Waiting until someone mines
-            if (wallet.equals("CaptainAmerica")) {
-                wallet = "captainAmerica";
+            MainLastBlock = ChainStore.getLastBlock().getWalletNumber();
+            if (ChainStore.getLastBlock().getWalletNumber() == HanukCoinUtils.walletCode("captainamerica")) {
+                wallet = "Claude"; //Claude did half the job, deserves credit
             }
             else {
-                wallet = "CaptainAmerica";
+                wallet = "captainamerica";
             }
-            while (ShowChain.lastBlock.getWalletNumber() == HanukCoinUtils.walletCode(wallet)) {
-                if (wallet.equals("CaptainAmerica")) {
-                    wallet = "captainAmerica";
+            Block newBlock = null;
+            while (newBlock == null) {
+                newBlock = miner.mineCoin(HanukCoinUtils.walletCode(wallet), ChainStore.getLastBlock(),HanukCoinUtils.numberOfZerosForPuzzle(ChainStore.getLastBlock().getSerialNumber()));
+                if (newBlock != null) {
+                    System.out.println(newBlock.binDump());
                 }
-                else {
-                    wallet = "CaptainAmerica";
-                }
-                //System.out.print("🔗");
+                RunningGpuMiner.startVal += 4294967295L;
+            }
+//            Statistics.add(AddToChain.main2(args));
+            RunningGpuMiner.startVal = 0L;
+            ChainStore.addBlock(newBlock);
+            blocksThoughtToBeMined++;
+            AddToChain.main(args);
+            ChainStore.writeDataToFile();
+
+            if (ChainStore.getLastBlock().getWalletNumber() == HanukCoinUtils.walletCode("captainamerica")) {
+                wallet = "Claude"; //Claude did half the job, deserves credit
+            }
+            else {
+                wallet = "captainamerica";
+            }
+
+            int EnterThing = 0;
+            int waitTime = (int) (500 * Math.log(ChainStore.getLastBlock().getSerialNumber())/Math.log(2));
+            // Waiting until someone mines
+
+            while (ChainStore.getLastBlock().getWalletNumber() == HanukCoinUtils.walletCode(wallet)) {
+                System.out.print("🔗");
                 EnterThing++;
                 if (EnterThing > 20) {
                     EnterThing = 0;
@@ -60,17 +75,13 @@ public class CaptainAmeriminer {
                 MiningStats.printData(Statistics);
             }
 
-            if (blocksThoughtToBeMined > 29) {
+            if (blocksThoughtToBeMined > 99) {
                 throw new Exception("Sampling is over");
             }
         }
     }
     public static ArrayList<int[]> getStats() {
         return Statistics;
-    }
-
-    public static void main2(String[] args) throws Exception {
-
     }
 
     public static boolean validate_chain(ArrayList<Block> chain) {
