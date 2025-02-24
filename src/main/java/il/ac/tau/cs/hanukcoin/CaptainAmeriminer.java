@@ -1,6 +1,10 @@
 package il.ac.tau.cs.hanukcoin;
-
+import java.awt.*;
+import java.io.IOException;
 import java.util.ArrayList;
+
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
 
 public class CaptainAmeriminer {
     public static int NumOfActiveThreads;
@@ -10,6 +14,7 @@ public class CaptainAmeriminer {
     public static int MainLastBlock = -1;
     public static ArrayList<int[]> Statistics = new ArrayList<>();
     public static int blocksThoughtToBeMined = 0;
+    public static boolean running = true;
 
     public static void main(String[] args) throws Exception {
         NumOfActiveThreads = 6;
@@ -17,15 +22,39 @@ public class CaptainAmeriminer {
         RunningGpuMiner miner = new RunningGpuMiner();
         ShowChain.main(args);
         ChainStore.writeDataToFile();
+
+        doStuffWithTheServerShit();
+
         // Main loop
-        while (true) {
+        while (running) {
+            int EnterThing = 0;
+            int waitTime = (int) (500 * Math.log(ChainStore.getLastBlock().getSerialNumber())/Math.log(2));
+            // Waiting until someone mines
+            while (ChainStore.getLastBlock().getWalletNumber() == HanukCoinUtils.walletCode(wallet)) {
+                System.out.print("🔗");
+                EnterThing++;
+                if (EnterThing > 20) {
+                    EnterThing = 0;
+                    System.out.println(" : 20 attempts :" + Colors[0] + " no activity" + A_RESET);
+                    waitTime = waitTime + 300;
+                }
+
+                try {
+                    Thread.sleep(waitTime);
+                } catch (InterruptedException e) {
+                    System.out.println("Wait interrupted: " + e.getMessage());
+                }
+
+                showChain.main(args);
+            }
+
             MainLastBlock = ChainStore.getLastBlock().getWalletNumber();
-            if (ChainStore.getLastBlock().getWalletNumber() == HanukCoinUtils.walletCode("captainamerica")) {
-                wallet = "Claude"; //Claude did half the job, deserves credit
-            }
-            else {
-                wallet = "captainamerica";
-            }
+//            if (ChainStore.getLastBlock().getWalletNumber() == HanukCoinUtils.walletCode("captainamerica")) {
+//                wallet = "Claude"; //Claude did half the job, deserves credit
+//            }
+//            else {
+//                wallet = "captainamerica";
+//            }
             Block newBlock = null;
             double t0 = System.currentTimeMillis();
             System.out.println(blocksThoughtToBeMined);
@@ -45,46 +74,26 @@ public class CaptainAmeriminer {
             AddToChain.main(args);
             ChainStore.writeDataToFile();
 
-            if (ChainStore.getLastBlock().getWalletNumber() == HanukCoinUtils.walletCode("captainamerica")) {
-                wallet = "Claude"; //Claude did half the job, deserves credit
-            }
-            else {
-                wallet = "captainamerica";
-            }
+//            if (ChainStore.getLastBlock().getWalletNumber() == HanukCoinUtils.walletCode("captainamerica")) {
+//                wallet = "Claude"; //Claude did half the job, deserves credit
+//            }
+//            else {
+//                wallet = "captainamerica";
+//            }
 
-            int EnterThing = 0;
-            int waitTime = (int) (500 * Math.log(ChainStore.getLastBlock().getSerialNumber())/Math.log(2));
-            // Waiting until someone mines
 
-            while (ChainStore.getLastBlock().getWalletNumber() == HanukCoinUtils.walletCode(wallet)) {
-                System.out.print("🔗");
-                EnterThing++;
-                if (EnterThing > 20) {
-                    EnterThing = 0;
-                    System.out.println(" : 20 attempts :" + Colors[0] + " no activity" + A_RESET);
-                    waitTime = waitTime + 300;
-                }
 
-                try {
-                    Thread.sleep(waitTime);
-                } catch (InterruptedException e) {
-                    System.out.println("Wait interrupted: " + e.getMessage());
-                }
-
-                showChain.main(args);
-            }
             System.out.println(" ");
             //System.out.println("Last block is not ours anymore, starting to mine...");
-            if (blocksThoughtToBeMined % 5 == 0) {
-                MiningStats.printData(Statistics);
-            }
 
-            //disable in the Final run - limits the blocks per run to 100.
+            //disable in the Final run - limits the blocks per run to some number.
             //Could be changed as you wish
-            if (blocksThoughtToBeMined > 99) {
-                throw new Exception("Sampling is over");
-            }
+            if (blocksThoughtToBeMined < 0) {
+                System.out.println(Colors[0] + "Sampling session has ended" + A_RESET);
+                running = false;
+            };
         }
+        System.out.println("dunno I think Im done here \n so yeah \n Like & subscribe for more HanukCoin Shei#e by me");
     }
     public static ArrayList<int[]> getStats() {
         return Statistics;
@@ -117,5 +126,34 @@ public class CaptainAmeriminer {
         }
 
         return true;
+    }
+
+    public static String getStatisticsJson() {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < Statistics.size(); i++) {
+            int[] stat = Statistics.get(i);
+            json.append("[").append(stat[0]).append(",")
+                    .append(stat[1]).append(",")
+                    .append(stat[2]).append("]");
+            if (i < Statistics.size() - 1) {
+                json.append(",");
+            }
+        }
+        json.append("]");
+        return json.toString();
+    }
+
+    public static void doStuffWithTheServerShit() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
+        server.createContext("/stats", (exchange -> {
+            String response = getStatisticsJson();
+            exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+            exchange.sendResponseHeaders(200, response.getBytes().length);
+            exchange.getResponseBody().write(response.getBytes());
+            exchange.getResponseBody().close();
+        }));
+        server.setExecutor(null);
+        server.start();
+        System.out.println("did smth with the server");
     }
 }

@@ -50,7 +50,6 @@ public class ShowChain {
         }
     }
 
-
     static class ClientConnection {
         private DataInputStream dataInput;
         private DataOutputStream dataOutput;
